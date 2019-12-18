@@ -7,7 +7,7 @@ It is exposing a subset of the cadvisor metrics depending on what is available o
 
 ## Run with docker
 ```
-docker run --rm -p 9030:9030  -v \\.\pipe\docker_engine:\\.\pipe\docker_engine alexvaut:cstatsexporter
+docker run --rm -p 9030:9030  -v \\.\pipe\docker_engine:\\.\pipe\docker_engine alexvaut/cstatsexporter:latest
 ```
 ## Build the docker image
 ```
@@ -15,6 +15,7 @@ go build -o main.exe .
 docker build -t cstatsexporter .
 ```
 ## Configuration
+In config.yaml:
 ```yaml
 scrapeIntervalSeconds: 5
 port: 9030
