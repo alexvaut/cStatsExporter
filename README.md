@@ -1,49 +1,64 @@
-# Tableau-Exporter-Prometheus
-Export Tableau metrics for Prometheus. It's more than inspired of https://community.tableau.com/docs/DOC-5592.
+# cStatsExporter
+Windows Docker Stats exporter for Prometheus.io. Compatible with cadvisor metrics !
 
-## Expose tableau DB
--	Enable access to the Tableau Server repository: https://help.tableau.com/current/server/en-us/perf_collect_server_repo.htm
--	For windows, open the port 8060 in the windows server firewall: https://community.tableau.com/thread/192653.
--	Try to connect from your tableau desktop running on another machine by adding a new data source: https://help.tableau.com/current/server/en-us/perf_collect_server_repo.htm (Connect to the Tableau Server repository).
+Cadvisor is doing a very good job on linux while on windows there isn't anything.
+
+It is exposing a subset of the cadvisor metrics depending on what is available on a windows host:
 
 ## Run with docker
 ```
-docker run --rm -p 9030:9030 -e DATABASE_HOST=tableauServer -e DATABASE_PASSWORD=tableauPostgreSQLUser -e DATABASE_PASSWORD=tableauPostgreSQLPassword alexvaut:promextableau
+docker run --rm -p 9030:9030  -v \\.\pipe\docker_engine:\\.\pipe\docker_engine alexvaut:cstatsexporter
 ```
 ## Build the docker image
 ```
-docker build -t tableau_exporter .
+go build -o main.exe .
+docker build -t cstatsexporter .
 ```
 ## Configuration
 ```yaml
-database:
-  host: "localhost"
-  port: 8060
-  name: "workgroup"
-  user: "readonly"
-  password: "password"
-
 scrapeIntervalSeconds: 5
 port: 9030
 ```
-All the configuration parameters can be setup through environment variables. For instance, for database->host, setup the environment variable DATABASE_HOST.
+All the configuration parameters can be setup through environment variables. For instance, for port, setup the environment variable PORT.
 
 
 ## Metrics:
 Accessible from http://localhost:9030/metrics when publishing port 9030.
 ```
-# HELP tableau_hits_total The total number of hits per project/workbook/view.
-# TYPE tableau_hits_total counter
-# HELP tableau_server_hits_total The total number of hits on tableau server.
-# TYPE tableau_server_hits_total counter
-# HELP tableau_server_sessions_total The total number of sessions on tableau server.
-# TYPE tableau_server_sessions_total counter
-# HELP tableau_server_users_count The number of distinct users on the tableau server on a period of time.
-# TYPE tableau_server_users_count gauge
-# HELP tableau_session_duration_seconds The total duration of a session.
-# TYPE tableau_session_duration_seconds histogram
-# HELP tableau_users_count The number of distinct users per project/workbook/view on a specific period of time.
-# TYPE tableau_users_count gauge
-# HELP tableau_response_time_seconds The time to answer user request per project/workbook/view.
-# TYPE tableau_response_time_seconds histogram
+# HELP container_cpu_system_seconds_total Cumulative system cpu time consumed in seconds.
+# TYPE container_cpu_system_seconds_total counter
+# HELP container_cpu_usage_seconds_total Cumulative cpu time consumed in seconds.
+# TYPE container_cpu_usage_seconds_total counter
+# HELP container_fs_reads_bytes_total Cumulative count of bytes read.
+# TYPE container_fs_reads_bytes_total counter
+# HELP container_fs_reads_total Cumulative count of reads completed.
+# TYPE container_fs_reads_total counter
+# HELP container_fs_writes_bytes_total Cumulative count of bytes written.
+# TYPE container_fs_writes_bytes_total counter
+# HELP container_fs_writes_total Cumulative count of writes completed.
+# TYPE container_fs_writes_total counter
+# HELP container_memory_usage_bytes Current memory usage in bytes, including all memory regardless of when it was accessed.
+# TYPE container_memory_usage_bytes gauge
+# HELP container_memory_working_set_bytes Current working set in bytes.
+# TYPE container_memory_working_set_bytes gauge
+# HELP container_network_receive_bytes_total Cumulative count of bytes received.
+# TYPE container_network_receive_bytes_total counter
+# HELP container_network_receive_errors_total Cumulative count of errors encountered while receiving.
+# TYPE container_network_receive_errors_total counter
+# HELP container_network_receive_packets_dropped_total Cumulative count of packets dropped while receiving.
+# TYPE container_network_receive_packets_dropped_total counter
+# HELP container_network_receive_packets_total Cumulative count of packets received.
+# TYPE container_network_receive_packets_total counter
+# HELP container_network_transmit_bytes_total Cumulative count of bytes transmitted.
+# TYPE container_network_transmit_bytes_total counter
+# HELP container_network_transmit_errors_total Cumulative count of errors encountered while transmitting.
+# TYPE container_network_transmit_errors_total counter
+# HELP container_network_transmit_packets_dropped_total Cumulative count of packets dropped while transmitting.
+# TYPE container_network_transmit_packets_dropped_total counter
+# HELP container_network_transmit_packets_total Cumulative count of packets transmitted.
+# TYPE container_network_transmit_packets_total counter
+# HELP container_spec_cpu_quota CPU quota of the container.
+# TYPE container_spec_cpu_quota gauge
+# HELP container_spec_memory_limit_bytes Memory limit for the container.
+# TYPE container_spec_memory_limit_bytes gauge
 ```
