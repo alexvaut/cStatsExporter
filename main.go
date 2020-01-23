@@ -45,6 +45,7 @@ var (
 	infos                         = map[string]types.ContainerJSON{}
 	stats                         = map[string]types.StatsJSON{}
 	labelNamesM                   = prometheus.Labels{}
+	metrics                       = make([]interface{}, 0)
 )
 
 func WaitForCtrlC() {
@@ -115,74 +116,92 @@ func main() {
 	counterCpuUsageTotalSeconds = promauto.NewCounterVec(prometheus.CounterOpts{
 		Name: "container_cpu_usage_seconds_total",
 		Help: "Cumulative cpu time consumed in seconds."}, labelNames)
+	metrics = append(metrics, counterCpuUsageTotalSeconds)
 
 	counterCpuKernelTotalSeconds = promauto.NewCounterVec(prometheus.CounterOpts{
 		Name: "container_cpu_system_seconds_total",
 		Help: "Cumulative system cpu time consumed in seconds."}, labelNames)
+	metrics = append(metrics, counterCpuKernelTotalSeconds)
 
 	gaugeCpuLimitQuota = promauto.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "container_spec_cpu_quota",
 		Help: "CPU quota of the container."}, labelNames)
+	metrics = append(metrics, gaugeCpuLimitQuota)
 
 	gaugeMemoryUsageBytes = promauto.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "container_memory_usage_bytes",
 		Help: "Current memory usage in bytes, including all memory regardless of when it was accessed."}, labelNames)
+	metrics = append(metrics, gaugeMemoryUsageBytes)
 
 	gaugeMemoryWorkingSetBytes = promauto.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "container_memory_working_set_bytes",
 		Help: "Current working set in bytes."}, labelNames)
+	metrics = append(metrics, gaugeMemoryWorkingSetBytes)
 
 	gaugeMemoryLimitBytes = promauto.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "container_spec_memory_limit_bytes",
 		Help: "Memory limit for the container."}, labelNames)
+	metrics = append(metrics, gaugeMemoryLimitBytes)
 
 	counterNetworkReceivedBytes = promauto.NewCounterVec(prometheus.CounterOpts{
 		Name: "container_network_receive_bytes_total",
 		Help: "Cumulative count of bytes received."}, netLabelNames)
+	metrics = append(metrics, counterNetworkReceivedBytes)
 
 	counterNetworkReceivedErrors = promauto.NewCounterVec(prometheus.CounterOpts{
 		Name: "container_network_receive_errors_total",
 		Help: "Cumulative count of errors encountered while receiving."}, netLabelNames)
+	metrics = append(metrics, counterNetworkReceivedErrors)
 
 	counterNetworkReceivedDropped = promauto.NewCounterVec(prometheus.CounterOpts{
 		Name: "container_network_receive_packets_dropped_total",
 		Help: "Cumulative count of packets dropped while receiving."}, netLabelNames)
+	metrics = append(metrics, counterNetworkReceivedDropped)
 
 	counterNetworkReceivedPackets = promauto.NewCounterVec(prometheus.CounterOpts{
 		Name: "container_network_receive_packets_total",
 		Help: "Cumulative count of packets received."}, netLabelNames)
+	metrics = append(metrics, counterNetworkReceivedPackets)
 
 	counterNetworkSentBytes = promauto.NewCounterVec(prometheus.CounterOpts{
 		Name: "container_network_transmit_bytes_total",
 		Help: "Cumulative count of bytes transmitted."}, netLabelNames)
+	metrics = append(metrics, counterNetworkSentBytes)
 
 	counterNetworkSentErrors = promauto.NewCounterVec(prometheus.CounterOpts{
 		Name: "container_network_transmit_errors_total",
 		Help: "Cumulative count of errors encountered while transmitting."}, netLabelNames)
+	metrics = append(metrics, counterNetworkSentErrors)
 
 	counterNetworkSentDropped = promauto.NewCounterVec(prometheus.CounterOpts{
 		Name: "container_network_transmit_packets_dropped_total",
 		Help: "Cumulative count of packets dropped while transmitting."}, netLabelNames)
+	metrics = append(metrics, counterNetworkSentDropped)
 
 	counterNetworkSentPackets = promauto.NewCounterVec(prometheus.CounterOpts{
 		Name: "container_network_transmit_packets_total",
 		Help: "Cumulative count of packets transmitted."}, netLabelNames)
+	metrics = append(metrics, counterNetworkSentPackets)
 
 	counterFsReadBytes = promauto.NewCounterVec(prometheus.CounterOpts{
 		Name: "container_fs_reads_bytes_total",
 		Help: "Cumulative count of bytes read."}, labelNames)
+	metrics = append(metrics, counterFsReadBytes)
 
 	counterFsReads = promauto.NewCounterVec(prometheus.CounterOpts{
 		Name: "container_fs_reads_total",
 		Help: "Cumulative count of reads completed."}, labelNames)
+	metrics = append(metrics, counterFsReads)
 
 	counterFsWriteBytes = promauto.NewCounterVec(prometheus.CounterOpts{
 		Name: "container_fs_writes_bytes_total",
 		Help: "Cumulative count of bytes written."}, labelNames)
+	metrics = append(metrics, counterFsWriteBytes)
 
 	counterFsWrites = promauto.NewCounterVec(prometheus.CounterOpts{
 		Name: "container_fs_writes_total",
 		Help: "Cumulative count of writes completed."}, labelNames)
+	metrics = append(metrics, counterFsWrites)
 
 	http.Handle("/metrics", promhttp.Handler())
 	srv := startHttpServer(config.Port)
@@ -226,7 +245,6 @@ func GatherMetrics() {
 			if err != nil {
 				panic(err)
 			}
-
 		}
 
 		cStats, err := cli.ContainerStats(context.Background(), container.ID, false)
@@ -234,17 +252,17 @@ func GatherMetrics() {
 			panic(err)
 		}
 
-		var labels = prometheus.Labels{"id": "/docker/" + container.ID, "image": info.Config.Image, "name": info.Name}
+		var labels = BuildLabels(container.ID)
 
 		for labelName, labelValue := range info.Config.Labels {
 			labels[NormalizeLabel(labelName)] = labelValue
 		}
 
-		for k,_ := range labelNamesM {
+		for k, _ := range labelNamesM {
 			if _, ok := labels[k]; !ok {
 				labels[k] = ""
-			}			 
-		  }
+			}
+		}
 
 		var newStats types.StatsJSON
 
@@ -291,6 +309,53 @@ func GatherMetrics() {
 
 		stats[container.ID] = newStats
 	}
+
+	//for all existing container in the stats, check if the container still exists
+	for id, stat := range stats {
+		found := false
+		for _, container := range containers {
+			if container.ID == id {
+				found = true
+				break
+			}
+		}
+
+		//if the container doesn't exist then delete all the related metrics
+		if !found {
+			fmt.Printf("Deleting metrics of %s\n", id[:10])
+
+			var labels = BuildLabels(id) //all the metrics with the container id
+			DeleteMetrics(labels)
+
+			var labelsNet = BuildLabels(id) //all the metrics with container id and with the network interfaces on top
+			for networkName, _ := range stat.Networks {
+				labelsNet["interface"] = networkName
+				DeleteMetrics(labelsNet)
+			}
+
+			delete(stats, id) //delete the container stats
+			delete(infos, id) //delete the container info
+		}
+	}
+}
+
+func DeleteMetrics(labels prometheus.Labels) {
+	for _, metric := range metrics {
+		switch metric.(type) {
+		case *prometheus.GaugeVec:
+			metric.(*prometheus.GaugeVec).Delete(labels)
+			break
+		case *prometheus.CounterVec:
+			metric.(*prometheus.CounterVec).Delete(labels)
+			break
+		}
+	}
+}
+
+func BuildLabels(id string) prometheus.Labels {
+	info := infos[id]
+	var labels = prometheus.Labels{"id": "/docker/" + id, "image": info.Config.Image, "name": info.Name}
+	return labels
 }
 
 func GetCounter(cVec *prometheus.CounterVec, labels prometheus.Labels) prometheus.Counter {
