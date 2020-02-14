@@ -93,3 +93,15 @@ Accessible from http://localhost:9030/metrics when publishing port 9030.
 # HELP host_meta Meta information on docker swarm container hosts.
 # TYPE host_meta gauge
 ```
+
+## Metadata:
+
+- node_meta can be used as a lookup to link a **node id** with its **node name** since each container deployed as a service in a docker swarm cluster has a label with its node id. The 3 labels are
+  - node_name
+  - node_id
+  - container_label_com_docker_swarm_node_id
+  The idea is from https://github.com/stefanprodan/swarmprom    
+- host_meta an be used as a lookup to link a **container hostname** with its **node name**. The 2 labels are
+  - node_name
+  - host
+  It's helpful when used in conjonction with telegraf(https://github.com/influxdata/telegraf) which is setting up a host label on each metric.
