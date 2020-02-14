@@ -9,6 +9,32 @@ It is exposing a subset of the cadvisor metrics depending on what is available o
 ```
 docker run --rm -p 9030:9030  -v \\.\pipe\docker_engine:\\.\pipe\docker_engine alexvaut/cstatsexporter:latest
 ```
+## Run with docker-compose
+```
+services:
+  cstatsexporter:
+    image: alexvaut/cstatsexporter:latest
+    volumes:
+      - source: '\\.\pipe\docker_engine'
+        target: '\\.\pipe\docker_engine'
+        type: npipe    
+```
+## Deploy with docker-compose on a docker swarm cluster
+```
+services:
+  cstatsexporter:
+    image: alexvaut/cstatsexporter:latest
+    volumes:
+      - source: '\\.\pipe\docker_engine'
+        target: '\\.\pipe\docker_engine'
+        type: npipe
+    deploy:
+      mode: global
+      placement:        
+        constraints:
+          - "node.platform.os == windows"              
+```
+
 ## Build the docker image
 ```
 go build -o main.exe .
