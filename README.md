@@ -62,4 +62,8 @@ Accessible from http://localhost:9030/metrics when publishing port 9030.
 # TYPE container_spec_cpu_quota gauge
 # HELP container_spec_memory_limit_bytes Memory limit for the container.
 # TYPE container_spec_memory_limit_bytes gauge
+# HELP node_meta Meta information on docker swarm nodes.
+# TYPE node_meta gauge
+# HELP host_meta Meta information on docker swarm container hosts.
+# TYPE host_meta gauge
 ```
