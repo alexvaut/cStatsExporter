@@ -26,6 +26,7 @@ import (
 const HostnameLabel = "host"
 const NodeNameLabel = "node_name"
 const NodeIdLabel = "node_id"
+const SwarmNodeIdLabel = "container_label_com_docker_swarm_node_id"
 
 var (
 	nodeMeta                      *prometheus.GaugeVec
@@ -50,7 +51,7 @@ var (
 	counterFsWrites               *prometheus.CounterVec
 	infos                         = map[string]types.ContainerJSON{}
 	stats                         = map[string]types.StatsJSON{}
-	nodeLabelNamesM               = prometheus.Labels{NodeIdLabel: "", "container_label_com_docker_swarm_node_id": "", NodeNameLabel: ""}
+	nodeLabelNamesM               = prometheus.Labels{NodeIdLabel: "", SwarmNodeIdLabel: "", NodeNameLabel: ""}
 	hostLabelNamesM               = prometheus.Labels{HostnameLabel: "", NodeNameLabel: ""}
 	labelNamesM                   = prometheus.Labels{}
 	metrics                       = make([]interface{}, 0)
@@ -255,7 +256,7 @@ func GatherMetrics() {
 	var nodeData types.Info
 	if nodeMeta != nil {
 		nodeData, _ = cli.Info(context.Background())
-		nodeMeta.WithLabelValues(nodeData.Swarm.NodeID, nodeData.Swarm.NodeID, nodeData.Name).Set(1)
+		nodeMeta.With(prometheus.Labels{NodeIdLabel: nodeData.Swarm.NodeID, SwarmNodeIdLabel: nodeData.Swarm.NodeID, NodeNameLabel: nodeData.Name}).Set(1)
 	}
 
 	containers, err := cli.ContainerList(context.Background(), types.ContainerListOptions{})
@@ -300,7 +301,7 @@ func GatherMetrics() {
 		}
 
 		if oldStats, ok := stats[container.ID]; ok {
-			hostMeta.WithLabelValues(container.ID[0:12], nodeData.Name).Set(1)
+			hostMeta.With(prometheus.Labels{HostnameLabel: container.ID[0:12], NodeNameLabel: nodeData.Name}).Set(1)
 			//CPU
 			GetCounter(counterCpuUsageTotalSeconds, labels).Add(float64(newStats.CPUStats.CPUUsage.TotalUsage-oldStats.CPUStats.CPUUsage.TotalUsage) / 10000000)
 			GetCounter(counterCpuKernelTotalSeconds, labels).Add(float64(newStats.CPUStats.CPUUsage.UsageInKernelmode-oldStats.CPUStats.CPUUsage.UsageInKernelmode) / 10000000)
