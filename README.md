@@ -1,5 +1,5 @@
 # cStatsExporter
-Windows Docker Stats exporter for Prometheus.io. Compatible with cadvisor metrics !
+Windows Docker Stats exporter for Prometheus.io. compatible with cadvisor metrics !
 
 Cadvisor is doing a very good job on linux while on windows there isn't anything.
 
