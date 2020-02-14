@@ -1,9 +1,13 @@
 # cStatsExporter
-Windows Docker Stats exporter for Prometheus.io. compatible with cadvisor metrics !
+Windows Docker Stats exporter for Prometheus.io. compatible with Cadvisor metrics !
 
 Cadvisor is doing a very good job on linux while on windows there isn't anything.
 
-It is exposing a subset of the cadvisor metrics depending on what is available on a windows host:
+cStatsExporter is exposing Cadvisor metrics from windows containers depending on what the windows docker daemon makes available (the stats are not exactly the same between linux and windows).
+
+cStatsExporter allows to reuse the same queries, grafana dashboards... that are working already with Cadvisor as a source. 
+
+It's tested on Docker Desktop 2.1.3.0 on Windows 10 and docker EE 19.03.02 for windows server 2019.
 
 ## Run with docker
 ```
