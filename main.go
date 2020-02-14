@@ -255,7 +255,7 @@ func GatherMetrics() {
 	var nodeData types.Info
 	if nodeMeta != nil {
 		nodeData, _ = cli.Info(context.Background())
-		nodeMeta.WithLabelValues(nodeData.Swarm.NodeID, nodeData.Swarm.NodeID, nodeData.Name).Set(1)
+		nodeMeta.With(prometheus.Labels{NodeIdLabel: nodeData.Swarm.NodeID, "container_label_com_docker_swarm_node_id": nodeData.Swarm.NodeID, NodeNameLabel: nodeData.Name}).Set(1)
 	}
 
 	containers, err := cli.ContainerList(context.Background(), types.ContainerListOptions{})
@@ -300,7 +300,7 @@ func GatherMetrics() {
 		}
 
 		if oldStats, ok := stats[container.ID]; ok {
-			hostMeta.WithLabelValues(container.ID[0:12], nodeData.Name).Set(1)
+			hostMeta.With(prometheus.Labels{HostnameLabel: container.ID[0:12], NodeNameLabel: nodeData.Name}).Set(1)
 			//CPU
 			GetCounter(counterCpuUsageTotalSeconds, labels).Add(float64(newStats.CPUStats.CPUUsage.TotalUsage-oldStats.CPUStats.CPUUsage.TotalUsage) / 10000000)
 			GetCounter(counterCpuKernelTotalSeconds, labels).Add(float64(newStats.CPUStats.CPUUsage.UsageInKernelmode-oldStats.CPUStats.CPUUsage.UsageInKernelmode) / 10000000)
