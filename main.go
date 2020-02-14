@@ -23,7 +23,13 @@ import (
 	"github.com/spf13/viper"
 )
 
+const HostnameLabel = "host"
+const NodeNameLabel = "node_name"
+const NodeIdLabel = "node_id"
+
 var (
+	nodeMeta                      *prometheus.GaugeVec
+	hostMeta                      *prometheus.GaugeVec
 	counterCpuUsageTotalSeconds   *prometheus.CounterVec
 	counterCpuKernelTotalSeconds  *prometheus.CounterVec
 	gaugeCpuLimitQuota            *prometheus.GaugeVec
@@ -44,6 +50,8 @@ var (
 	counterFsWrites               *prometheus.CounterVec
 	infos                         = map[string]types.ContainerJSON{}
 	stats                         = map[string]types.StatsJSON{}
+	nodeLabelNamesM               = prometheus.Labels{NodeIdLabel: "", "container_label_com_docker_swarm_node_id": "", NodeNameLabel: ""}
+	hostLabelNamesM               = prometheus.Labels{HostnameLabel: "", NodeNameLabel: ""}
 	labelNamesM                   = prometheus.Labels{}
 	metrics                       = make([]interface{}, 0)
 )
@@ -83,6 +91,14 @@ func NormalizeLabel(label string) string {
 	return "container_label_" + strings.ReplaceAll(label, ".", "_")
 }
 
+func GetKeys(m map[string]string) []string {
+	ret := []string{}
+	for k := range m {
+		ret = append(ret, k)
+	}
+	return ret
+}
+
 func main() {
 
 	fmt.Println("Starting...")
@@ -103,15 +119,21 @@ func main() {
 	labelNamesM["image"] = ""
 	labelNamesM["name"] = ""
 
-	labelNames := make([]string, 0, len(labelNamesM))
-	for k := range labelNamesM {
-		labelNames = append(labelNames, k)
-	}
+	labelNames := GetKeys(labelNamesM)
 
 	netLabelNames := labelNames
 	netLabelNames = append(netLabelNames, "interface")
 
 	//create metrics
+	nodeMeta = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "node_meta",
+		Help: "Meta information on docker swarm nodes."}, GetKeys(nodeLabelNamesM))
+	//no need to add in metrics
+
+	hostMeta = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "host_meta",
+		Help: "Meta information on docker swarm container hosts."}, GetKeys(hostLabelNamesM))
+	//no need to add in metrics
 
 	counterCpuUsageTotalSeconds = promauto.NewCounterVec(prometheus.CounterOpts{
 		Name: "container_cpu_usage_seconds_total",
@@ -230,13 +252,19 @@ func GatherMetrics() {
 		panic(err)
 	}
 
+	var nodeData types.Info
+	if nodeMeta != nil {
+		nodeData, _ = cli.Info(context.Background())
+		nodeMeta.WithLabelValues(nodeData.Swarm.NodeID, nodeData.Swarm.NodeID, nodeData.Name).Set(1)
+	}
+
 	containers, err := cli.ContainerList(context.Background(), types.ContainerListOptions{})
 	if err != nil {
 		panic(err)
 	}
 
 	for _, container := range containers {
-		fmt.Printf("%s %s\n", container.ID[:10], container.Image)
+		fmt.Printf("%s %s\n", container.ID[:12], container.Image)
 
 		info, ok := infos[container.ID]
 		if !ok {
@@ -272,6 +300,7 @@ func GatherMetrics() {
 		}
 
 		if oldStats, ok := stats[container.ID]; ok {
+			hostMeta.WithLabelValues(container.ID[0:12], nodeData.Name).Set(1)
 			//CPU
 			GetCounter(counterCpuUsageTotalSeconds, labels).Add(float64(newStats.CPUStats.CPUUsage.TotalUsage-oldStats.CPUStats.CPUUsage.TotalUsage) / 10000000)
 			GetCounter(counterCpuKernelTotalSeconds, labels).Add(float64(newStats.CPUStats.CPUUsage.UsageInKernelmode-oldStats.CPUStats.CPUUsage.UsageInKernelmode) / 10000000)
@@ -332,6 +361,8 @@ func GatherMetrics() {
 				labelsNet["interface"] = networkName
 				DeleteMetrics(labelsNet)
 			}
+
+			hostMeta.Delete(prometheus.Labels{HostnameLabel: id[0:12], NodeNameLabel: nodeData.Name})
 
 			delete(stats, id) //delete the container stats
 			delete(infos, id) //delete the container info
