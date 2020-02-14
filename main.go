@@ -26,6 +26,7 @@ import (
 const HostnameLabel = "host"
 const NodeNameLabel = "node_name"
 const NodeIdLabel = "node_id"
+const SwarmNodeIdLabel = "container_label_com_docker_swarm_node_id"
 
 var (
 	nodeMeta                      *prometheus.GaugeVec
@@ -50,7 +51,7 @@ var (
 	counterFsWrites               *prometheus.CounterVec
 	infos                         = map[string]types.ContainerJSON{}
 	stats                         = map[string]types.StatsJSON{}
-	nodeLabelNamesM               = prometheus.Labels{NodeIdLabel: "", "container_label_com_docker_swarm_node_id": "", NodeNameLabel: ""}
+	nodeLabelNamesM               = prometheus.Labels{NodeIdLabel: "", SwarmNodeIdLabel: "", NodeNameLabel: ""}
 	hostLabelNamesM               = prometheus.Labels{HostnameLabel: "", NodeNameLabel: ""}
 	labelNamesM                   = prometheus.Labels{}
 	metrics                       = make([]interface{}, 0)
@@ -255,7 +256,7 @@ func GatherMetrics() {
 	var nodeData types.Info
 	if nodeMeta != nil {
 		nodeData, _ = cli.Info(context.Background())
-		nodeMeta.With(prometheus.Labels{NodeIdLabel: nodeData.Swarm.NodeID, "container_label_com_docker_swarm_node_id": nodeData.Swarm.NodeID, NodeNameLabel: nodeData.Name}).Set(1)
+		nodeMeta.With(prometheus.Labels{NodeIdLabel: nodeData.Swarm.NodeID, SwarmNodeIdLabel: nodeData.Swarm.NodeID, NodeNameLabel: nodeData.Name}).Set(1)
 	}
 
 	containers, err := cli.ContainerList(context.Background(), types.ContainerListOptions{})
