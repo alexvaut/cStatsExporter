@@ -56,6 +56,8 @@ All the configuration parameters can be setup through environment variables. For
 ## Metrics:
 Accessible from http://localhost:9030/metrics when publishing port 9030.
 ```
+# HELP container_last_seen Last time a container was seen by the exporter.
+# TYPE container_last_seen gauge
 # HELP container_cpu_system_seconds_total Cumulative system cpu time consumed in seconds.
 # TYPE container_cpu_system_seconds_total counter
 # HELP container_cpu_usage_seconds_total Cumulative cpu time consumed in seconds.
