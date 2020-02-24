@@ -29,8 +29,13 @@ const NodeIdLabel = "node_id"
 const SwarmNodeIdLabel = "container_label_com_docker_swarm_node_id"
 
 var (
-	nodeMeta                      *prometheus.GaugeVec
+	//metrics per node
+	nodeMeta        *prometheus.GaugeVec
+	machineCpuCores *prometheus.GaugeVec
+	machineMemory   *prometheus.GaugeVec
+	//metrics per container
 	hostMeta                      *prometheus.GaugeVec
+	containerLastSeen             *prometheus.GaugeVec
 	counterCpuUsageTotalSeconds   *prometheus.CounterVec
 	counterCpuKernelTotalSeconds  *prometheus.CounterVec
 	gaugeCpuLimitQuota            *prometheus.GaugeVec
@@ -52,7 +57,7 @@ var (
 	infos                         = map[string]types.ContainerJSON{}
 	stats                         = map[string]types.StatsJSON{}
 	nodeLabelNamesM               = prometheus.Labels{NodeIdLabel: "", SwarmNodeIdLabel: "", NodeNameLabel: ""}
-	hostLabelNamesM               = prometheus.Labels{HostnameLabel: "", NodeNameLabel: ""}
+	hostLabelNamesM               = prometheus.Labels{NodeIdLabel: "", HostnameLabel: "", NodeNameLabel: ""}
 	labelNamesM                   = prometheus.Labels{}
 	metrics                       = make([]interface{}, 0)
 )
@@ -129,12 +134,22 @@ func main() {
 	nodeMeta = promauto.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "node_meta",
 		Help: "Meta information on docker swarm nodes."}, GetKeys(nodeLabelNamesM))
-	//no need to add in metrics
+	machineCpuCores = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "machine_cpu_cores",
+		Help: "Number of CPU cores on the machine."}, GetKeys(nodeLabelNamesM))
+	machineMemory = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "machine_memory_bytes",
+		Help: "Amount of memory installed on the machine."}, GetKeys(nodeLabelNamesM))
 
 	hostMeta = promauto.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "host_meta",
 		Help: "Meta information on docker swarm container hosts."}, GetKeys(hostLabelNamesM))
 	//no need to add in metrics
+
+	containerLastSeen = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "container_last_seen",
+		Help: "Last time a container was seen by the exporter."}, labelNames)
+	metrics = append(metrics, containerLastSeen)
 
 	counterCpuUsageTotalSeconds = promauto.NewCounterVec(prometheus.CounterOpts{
 		Name: "container_cpu_usage_seconds_total",
@@ -257,6 +272,8 @@ func GatherMetrics() {
 	if nodeMeta != nil {
 		nodeData, _ = cli.Info(context.Background())
 		nodeMeta.With(prometheus.Labels{NodeIdLabel: nodeData.Swarm.NodeID, SwarmNodeIdLabel: nodeData.Swarm.NodeID, NodeNameLabel: nodeData.Name}).Set(1)
+		machineCpuCores.With(prometheus.Labels{NodeIdLabel: nodeData.Swarm.NodeID, SwarmNodeIdLabel: nodeData.Swarm.NodeID, NodeNameLabel: nodeData.Name}).Set(float64(nodeData.NCPU))
+		machineMemory.With(prometheus.Labels{NodeIdLabel: nodeData.Swarm.NodeID, SwarmNodeIdLabel: nodeData.Swarm.NodeID, NodeNameLabel: nodeData.Name}).Set(float64(nodeData.MemTotal))
 	}
 
 	containers, err := cli.ContainerList(context.Background(), types.ContainerListOptions{})
@@ -301,13 +318,15 @@ func GatherMetrics() {
 		}
 
 		if oldStats, ok := stats[container.ID]; ok {
-			hostMeta.With(prometheus.Labels{HostnameLabel: container.ID[0:12], NodeNameLabel: nodeData.Name}).Set(1)
+			hostMeta.With(prometheus.Labels{NodeIdLabel: nodeData.Swarm.NodeID, HostnameLabel: container.ID[0:12], NodeNameLabel: nodeData.Name}).Set(1)
 			//CPU
 			GetCounter(counterCpuUsageTotalSeconds, labels).Add(float64(newStats.CPUStats.CPUUsage.TotalUsage-oldStats.CPUStats.CPUUsage.TotalUsage) / 10000000)
 			GetCounter(counterCpuKernelTotalSeconds, labels).Add(float64(newStats.CPUStats.CPUUsage.UsageInKernelmode-oldStats.CPUStats.CPUUsage.UsageInKernelmode) / 10000000)
 			if info.HostConfig.NanoCPUs > 0 {
 				GetGauge(gaugeCpuLimitQuota, labels).Set(float64(info.HostConfig.NanoCPUs) / 10000)
 			}
+
+			GetGauge(containerLastSeen, labels).Set(float64(newStats.Stats.Read.Unix()))
 
 			//Memory
 			GetGauge(gaugeMemoryUsageBytes, labels).Set(float64(newStats.MemoryStats.Commit))
@@ -363,7 +382,7 @@ func GatherMetrics() {
 				DeleteMetrics(labelsNet)
 			}
 
-			hostMeta.Delete(prometheus.Labels{HostnameLabel: id[0:12], NodeNameLabel: nodeData.Name})
+			hostMeta.Delete(prometheus.Labels{NodeIdLabel: nodeData.Swarm.NodeID, HostnameLabel: id[0:12], NodeNameLabel: nodeData.Name})
 
 			delete(stats, id) //delete the container stats
 			delete(infos, id) //delete the container info
