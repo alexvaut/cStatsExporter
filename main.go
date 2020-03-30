@@ -26,6 +26,7 @@ import (
 const HostnameLabel = "host"
 const NodeNameLabel = "node_name"
 const NodeIdLabel = "node_id"
+const InterfaceLabel = "interface"
 const SwarmNodeIdLabel = "container_label_com_docker_swarm_node_id"
 
 var (
@@ -113,22 +114,19 @@ func main() {
 
 	GatherMetrics()
 
-	//get the label names
-
+	//get the labels
+	//WARNING: only the labels used at least on one container **when starting this exporter** will be used to report metrics.
 	for _, info := range infos {
-		//fmt.Println("Key:", key, "Value:", value)
-		for labelName, _ := range info.Config.Labels {
-			labelNamesM[NormalizeLabel(labelName)] = ""
+		labels := BuildLabels(info.ID, false)
+		for labelName, _ := range labels {
+			labelNamesM[labelName] = ""
 		}
 	}
-	labelNamesM["id"] = ""
-	labelNamesM["image"] = ""
-	labelNamesM["name"] = ""
 
 	labelNames := GetKeys(labelNamesM)
 
 	netLabelNames := labelNames
-	netLabelNames = append(netLabelNames, "interface")
+	netLabelNames = append(netLabelNames, InterfaceLabel)
 
 	//create metrics
 	nodeMeta = promauto.NewGaugeVec(prometheus.GaugeOpts{
@@ -298,17 +296,7 @@ func GatherMetrics() {
 			panic(err)
 		}
 
-		var labels = BuildLabels(container.ID)
-
-		for labelName, labelValue := range info.Config.Labels {
-			labels[NormalizeLabel(labelName)] = labelValue
-		}
-
-		for k, _ := range labelNamesM {
-			if _, ok := labels[k]; !ok {
-				labels[k] = ""
-			}
-		}
+		var labels = BuildLabels(container.ID, true)
 
 		var newStats types.StatsJSON
 
@@ -343,7 +331,7 @@ func GatherMetrics() {
 
 			for networkName, newNetworkStats := range newStats.Networks {
 				if oldNetworkStats, ok := oldStats.Networks[networkName]; ok {
-					labels["interface"] = networkName
+					labels[InterfaceLabel] = networkName
 					GetCounter(counterNetworkReceivedBytes, labels).Add(float64(newNetworkStats.RxBytes - oldNetworkStats.RxBytes))
 					GetCounter(counterNetworkReceivedErrors, labels).Add(float64(newNetworkStats.RxErrors - oldNetworkStats.RxErrors))
 					GetCounter(counterNetworkReceivedDropped, labels).Add(float64(newNetworkStats.RxDropped - oldNetworkStats.RxDropped))
@@ -371,14 +359,14 @@ func GatherMetrics() {
 
 		//if the container doesn't exist then delete all the related metrics
 		if !found {
-			fmt.Printf("Deleting metrics of %s\n", id[:10])
+			fmt.Printf("Deleting metrics of %s\n", id[:12])
 
-			var labels = BuildLabels(id) //all the metrics with the container id
+			var labels = BuildLabels(id, true) //all the metrics with the container id
 			DeleteMetrics(labels)
 
-			var labelsNet = BuildLabels(id) //all the metrics with container id and with the network interfaces on top
+			var labelsNet = BuildLabels(id, true) //all the metrics with container id and with the network interfaces on top
 			for networkName, _ := range stat.Networks {
-				labelsNet["interface"] = networkName
+				labelsNet[InterfaceLabel] = networkName
 				DeleteMetrics(labelsNet)
 			}
 
@@ -403,9 +391,30 @@ func DeleteMetrics(labels prometheus.Labels) {
 	}
 }
 
-func BuildLabels(id string) prometheus.Labels {
+func BuildLabels(id string, filter bool) prometheus.Labels {
 	info := infos[id]
 	var labels = prometheus.Labels{"id": "/docker/" + id, "image": info.Config.Image, "name": info.Name}
+
+	for labelName, labelValue := range info.Config.Labels {
+		labels[NormalizeLabel(labelName)] = labelValue
+	}
+
+	if filter {
+		//add labels that are missing (according to labelNamesM)
+		for k, _ := range labelNamesM {
+			if _, ok := labels[k]; !ok {
+				labels[k] = ""
+			}
+		}
+
+		//remove labels that are unknown (according to labelNamesM)
+		for k, _ := range labels {
+			if _, ok := labelNamesM[k]; !ok {
+				delete(labels, k)
+			}
+		}
+	}
+
 	return labels
 }
 
