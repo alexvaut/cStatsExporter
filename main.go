@@ -14,6 +14,8 @@ import (
 
 	c "cstatsexporter/config"
 
+	//_ "net/http/pprof"
+
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/client"
 	_ "github.com/lib/pq"
@@ -107,6 +109,10 @@ func GetKeys(m map[string]string) []string {
 }
 
 func main() {
+
+	//go func() {
+	//	log.Println(http.ListenAndServe("localhost:6060", nil))
+	//}()
 
 	fmt.Println("Starting...")
 	var config c.Configurations = GetConfig()
@@ -376,6 +382,9 @@ func GatherMetrics() {
 			delete(infos, id) //delete the container info
 		}
 	}
+
+	//close connection to docker
+	cli.Close()
 }
 
 func DeleteMetrics(labels prometheus.Labels) {
