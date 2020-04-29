@@ -125,7 +125,6 @@ func main() {
 	for _, info := range infos {
 		labels := BuildLabels(info.ID, false)
 		for labelName, _ := range labels {
-			log.Println(labelName)
 			labelNamesM[labelName] = ""
 		}
 	}
@@ -408,8 +407,9 @@ func BuildLabels(id string, filter bool) prometheus.Labels {
 		labels = prometheus.Labels{"id": "/docker/" + id, "image": info.Config.Image, 
 		    "pod": info.Config.Labels["io.kubernetes.pod.name"], 
 		    "namespace": info.Config.Labels["io.kubernetes.pod.namespace"],
-		    "beta_kubernetes_io_os": "windows",
-		    "kubernetes_io_role": "node"}
+			"node_name": os.Getenv("NODE_NAME"),
+			"beta_kubernetes_io_os": "windows",
+			"kubernetes_io_role": "node"}
 	} else {
 		labels = prometheus.Labels{"id": "/docker/" + id, "image": info.Config.Image, "name": info.Name}
 		for labelName, labelValue := range info.Config.Labels {
