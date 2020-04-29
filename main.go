@@ -63,6 +63,7 @@ var (
 	hostLabelNamesM               = prometheus.Labels{NodeIdLabel: "", HostnameLabel: "", NodeNameLabel: ""}
 	labelNamesM                   = prometheus.Labels{}
 	metrics                       = make([]interface{}, 0)
+	config c.Configurations 	  = GetConfig()
 )
 
 func WaitForCtrlC() {
@@ -115,7 +116,6 @@ func main() {
 	//}()
 
 	fmt.Println("Starting...")
-	var config c.Configurations = GetConfig()
 	fmt.Printf("Configuration read. Scrap time = %d seconds.\n", config.ScrapeIntervalSeconds)
 
 	GatherMetrics()
@@ -125,6 +125,7 @@ func main() {
 	for _, info := range infos {
 		labels := BuildLabels(info.ID, false)
 		for labelName, _ := range labels {
+			log.Println(labelName)
 			labelNamesM[labelName] = ""
 		}
 	}
@@ -402,28 +403,35 @@ func DeleteMetrics(labels prometheus.Labels) {
 
 func BuildLabels(id string, filter bool) prometheus.Labels {
 	info := infos[id]
-	var labels = prometheus.Labels{"id": "/docker/" + id, "image": info.Config.Image, "name": info.Name}
-
-	for labelName, labelValue := range info.Config.Labels {
-		labels[NormalizeLabel(labelName)] = labelValue
-	}
-
-	if filter {
-		//add labels that are missing (according to labelNamesM)
-		for k, _ := range labelNamesM {
-			if _, ok := labels[k]; !ok {
-				labels[k] = ""
-			}
+	var labels = prometheus.Labels{}
+	if config.Kubernetes {
+		labels = prometheus.Labels{"id": "/docker/" + id, "image": info.Config.Image, 
+		    "pod": info.Config.Labels["io.kubernetes.pod.name"], 
+		    "namespace": info.Config.Labels["io.kubernetes.pod.namespace"],
+		    "beta_kubernetes_io_os": "windows",
+		    "kubernetes_io_role": "node"}
+	} else {
+		labels = prometheus.Labels{"id": "/docker/" + id, "image": info.Config.Image, "name": info.Name}
+		for labelName, labelValue := range info.Config.Labels {
+			labels[NormalizeLabel(labelName)] = labelValue
 		}
 
-		//remove labels that are unknown (according to labelNamesM)
-		for k, _ := range labels {
-			if _, ok := labelNamesM[k]; !ok {
-				delete(labels, k)
+		if filter {
+			//add labels that are missing (according to labelNamesM)
+			for k, _ := range labelNamesM {
+				if _, ok := labels[k]; !ok {
+					labels[k] = ""
+				}
+			}
+
+			//remove labels that are unknown (according to labelNamesM)
+			for k, _ := range labels {
+				if _, ok := labelNamesM[k]; !ok {
+					delete(labels, k)
+				}
 			}
 		}
 	}
-
 	return labels
 }
 

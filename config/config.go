@@ -4,4 +4,5 @@ package config
 type Configurations struct {
 	ScrapeIntervalSeconds int64
 	Port                  int
+	Kubernetes            bool			 
 }
