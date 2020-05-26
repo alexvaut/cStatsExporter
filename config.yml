@@ -1,2 +1,3 @@
 scrapeIntervalSeconds: 15
 port: 9030
+kubernetes: false
