@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -30,6 +31,8 @@ const NodeNameLabel = "node_name"
 const NodeIdLabel = "node_id"
 const InterfaceLabel = "interface"
 const SwarmNodeIdLabel = "container_label_com_docker_swarm_node_id"
+
+var labelNameReplaceExpression = regexp.MustCompile("\\.|-")
 
 var (
 	//metrics per node
@@ -98,7 +101,7 @@ func startHttpServer(port int) *http.Server {
 }
 
 func NormalizeLabel(label string) string {
-	return "container_label_" + strings.ReplaceAll(label, ".", "_")
+	return "container_label_" + strings.ToLower(labelNameReplaceExpression.ReplaceAllString(label, "_"))
 }
 
 func GetKeys(m map[string]string) []string {
